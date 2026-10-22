@@ -1,0 +1,207 @@
+# Complete configuration reference; practical workflows live in autostacgis-python.
+catalog:
+  version: 1.0.0
+  plugins:
+  - use: stac-resolver
+    settings:
+      search_glob: data/source.tif
+  - use: align_grid
+  - use: statistics
+    execution:
+      transfer: optimized
+  - use: global_radiometric_match
+  - use: group-by
+  - use: executor
+  - use: events
+  - use: geotiff
+  - use: stac-json
+  - id: output
+    requires: []
+    settings:
+      name: reference
+    settings_schema:
+      type: object
+    capabilities:
+      goal:
+        implementation: output
+        settings:
+          kind: raster
+  - use: filesystem
+  - use: buffered-transfer
+  - use: file-checkpoint
+  - use: valid-data
+  - use: stac-item
+  - use: split
+  - use: combine
+  solver:
+    max_steps: 64
+    max_states: 100000
+    max_bindings: 100000
+    timeout: 120
+  runtime:
+    executor:
+      implementation: executor
+      settings:
+        backend: threads
+        workers: 2
+  extension_schemas:
+    https://autostacgis.github.io/stac-data-state/v1.0.0/schema.json: ../../extensions/data-state/schema.json
+  defaults:
+    data_transfer:
+      plugin: buffered-transfer
+request:
+  version: 1.0.0
+  sources:
+  - stac-resolver
+  query: {}
+  modules:
+  - align_grid
+  - statistics
+  - global_radiometric_match
+  module_settings:
+    align_grid:
+      crs: EPSG:8857
+      resampling: bilinear
+  goal:
+    any_of:
+    - all_of:
+      - output:
+          name: reference
+          kind: raster
+          require:
+            assets.$asset.data_state:statistics_calculated: true
+          from:
+          - source-scene
+          select:
+            properties.platform: example-sensor
+          count: 1
+          coverage:
+            geometry:
+              type: Polygon
+              coordinates:
+              - - - -156
+                  - 19
+                - - -155
+                  - 19
+                - - -155
+                  - 20
+                - - -156
+                  - 20
+                - - -156
+                  - 19
+            mode: footprint
+          publish:
+            encode:
+              plugin: geotiff
+            data_out:
+              plugin: filesystem
+              settings:
+                directory: output/data
+            metadata_out:
+              plugin: stac-json
+              settings:
+                directory: output/stac
+      - for_each:
+          name: aligned
+          kind: raster
+          select:
+            assets.$asset.data_state:spectral_sampling: multispectral
+          require:
+            assets.$asset.data_state:grid_aligned: true
+          publish:
+            encode:
+              plugin: geotiff
+            data_out:
+              plugin: filesystem
+              settings:
+                directory: output/data
+            metadata_out:
+              plugin: stac-json
+              settings:
+                directory: output/stac
+    - plugin: output
+      settings:
+        require:
+          assets.$asset.data_state:statistics_calculated: true
+        publish:
+          encode:
+            plugin: geotiff
+          data_out:
+            plugin: filesystem
+            settings:
+              directory: output/data
+          metadata_out:
+            plugin: stac-json
+            settings:
+              directory: output/stac
+  solver:
+    max_steps: 16
+    max_states: 10000
+    max_bindings: 10000
+    timeout: 30
+  runtime:
+    executor:
+      settings:
+        workers: 1
+  work_directory: work/reference
+  discovery: false
+  steps:
+    prepare:
+      auto: true
+    project:
+      plugin: align_grid
+      settings:
+        resampling: nearest
+      param:resolution: 10
+      transfer: optimized
+    reuse_grid:
+      plugin: align_grid
+      param:crs: result:project:result#/assets/data/proj:code
+      inputs:
+        image: result:project:result
+      checkpoint: null
+    measure:
+      plugin: statistics
+      outputs:
+        result:
+          publish:
+            encode:
+              plugin: geotiff
+            data_out:
+              plugin: filesystem
+              settings:
+                path: output/reference.tif
+            metadata_out:
+            - plugin: stac-json
+              settings:
+                path: output/reference.stac.json
+                href_field: properties.example:metadata
+            - plugin: stac-item
+              settings:
+                set:
+                  properties.example:reviewed: true
+          transfer: file
+    finish:
+      auto: true
+  sequence:
+    global_radiometric_match.images:
+    - plugin: group-by
+      settings:
+        field: properties.platform
+      scope: inventory
+    - plugin: split
+      settings:
+        size: 8
+    - plugin: combine
+  data_transfer:
+    plugin: buffered-transfer
+    settings:
+      memory_bytes: 268435456
+  checkpoint:
+    plugin: file-checkpoint
+    settings:
+      directory: work/checkpoints
+      relative_to: config
+      item_path: properties.data_state:directory_root
+      checks:
+      - plugin: valid-data

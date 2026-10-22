@@ -1,0 +1,23 @@
+{
+  "profiles": {
+    "small": {
+      "solver": {
+        "max_steps": 8,
+        "timeout": 10
+      },
+      "runtime": {
+        "executor": {
+          "settings": {
+            "workers": 1
+          }
+        }
+      }
+    },
+    "sequence": {
+      "global_radiometric_match.images": null
+    }
+  },
+  "paths": {
+    "work": "work/imported-reference"
+  }
+}
