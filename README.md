@@ -39,3 +39,5 @@ YAML catalogs select installed plugins by registration name, for example `plugin
 - [autostacgis-web](https://github.com/autostacgis/autostacgis-web): Kepler.gl workspace and Electron desktop builds for macOS, Windows and Linux, with an optional bundled backend that starts on explicit request.
 
 Both clients use the same standard STAC endpoints and optional `/autostacgis` configuration, planning and job API. The Python library supplies managed APScheduler and watchdog triggers, registered independently by the standard plugin distribution.
+
+The optional `metadata_structure` configuration section combines STAC Item JSON Schema URLs (`schemas`) with an inline Item JSON Schema (`inline`). With `strict: true` (the default when this section is present), undeclared metadata is an error. STAC's core Item schema is always included. Declare extension schemas explicitly. See the Python library's metadata structure documentation for plugin access and nested field rules.
