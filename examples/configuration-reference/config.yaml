@@ -1,4 +1,3 @@
-# Complete configuration reference; practical workflows live in autostacgis-python.
 catalog:
   version: 1.0.0
   plugins:
@@ -15,17 +14,6 @@ catalog:
   - use: events
   - use: geotiff
   - use: stac-json
-  - id: output
-    requires: []
-    settings:
-      name: reference
-    settings_schema:
-      type: object
-    capabilities:
-      goal:
-        implementation: output
-        settings:
-          kind: raster
   - use: filesystem
   - use: buffered-transfer
   - use: file-checkpoint
@@ -33,11 +21,19 @@ catalog:
   - use: stac-item
   - use: split
   - use: combine
+  - id: metadata-value
+    requires:
+    - backward_chain
+    capabilities:
+      goal:
+        implementation: metadata-value
   solver:
-    max_steps: 64
-    max_states: 100000
-    max_bindings: 100000
-    timeout: 120
+    plugin: backward_chain
+    settings:
+      max_steps: 64
+      max_states: 100000
+      max_bindings: 100000
+      timeout: 120
   runtime:
     executor:
       implementation: executor
@@ -119,26 +115,18 @@ request:
               plugin: stac-json
               settings:
                 directory: output/stac
-    - plugin: output
+    - plugin: metadata-value
       settings:
-        require:
-          assets.$asset.data_state:statistics_calculated: true
-        publish:
-          encode:
-            plugin: geotiff
-          data_out:
-            plugin: filesystem
-            settings:
-              directory: output/data
-          metadata_out:
-            plugin: stac-json
-            settings:
-              directory: output/stac
+        path: assets.$asset.data_state:statistics_calculated
+        value: true
+        kind: raster
   solver:
-    max_steps: 16
-    max_states: 10000
-    max_bindings: 10000
-    timeout: 30
+    plugin: backward_chain
+    settings:
+      max_steps: 16
+      max_states: 10000
+      max_bindings: 10000
+      timeout: 30
   runtime:
     executor:
       settings:

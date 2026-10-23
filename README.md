@@ -1,14 +1,14 @@
 # AutoSTACGIS specification 1.0
 
-AutoSTACGIS turns available geospatial data and requested output metadata into a processing workflow. Candidate data is described by STAC Items and assets. Python modules declare input requirements, output effects, and costs. Composable goal plugins describe the required results.
+AutoSTACGIS turns available geospatial data and requested output metadata into a processing workflow. Candidate data is described by STAC Items and assets. Python modules declare input requirements, output effects, and costs. Declarative metadata goals describe the required results.
 
 This repository contains the specification, JSON Schemas, pinned STAC extension schemas, and JSON/YAML examples. [autostacgis-python](https://github.com/autostacgis/autostacgis-python) contains the implementation and pinned EODAG and EOReader forks. A server is not required.
 
 ```mermaid
 flowchart TD
     Sources[EOReader / EODAG / local STAC] --> Inventory[Candidate STAC items and assets]
-    Goals[Composable goal plugins] --> Constraints[Named output constraints]
-    Modules[Processing functions + requirements + effects + costs] --> Solver[BETSY-style workflow synthesis]
+    Goals[Declarative metadata goals] --> Constraints[Named output constraints]
+    Modules[Processing functions + requirements + effects + costs] --> Solver[backward chaining workflow synthesis]
     Inventory --> Solver
     Constraints --> Solver
     Solver --> Preview[Predicted outputs and dependency DAG]
@@ -30,4 +30,4 @@ The standard run configuration is one self-contained YAML or JSON file with `cat
 
 Validate with `python tools/validate.py` after installing `jsonschema`, `referencing`, and `PyYAML`.
 
-YAML catalogs select installed plugins by registration name, for example `plugins: [{use: markov_seamlines}, {use: mosaic}]`. Dependencies load automatically from the Python `autostacgis.plugins` namespace. Competing producers of a required state are a configuration error. The backward solver reports a feasible synthesized graph without claiming global cost optimality. See the [configuration reference](examples/configuration-reference/config.yaml) for the complete configuration layout.
+YAML catalogs select installed plugins by registration name, for example `plugins: [{use: markov_seamlines}, {use: mosaic}]`. Dependencies load automatically through the `autostacgis.plugins` entry-point group. Each plugin explicitly declares one capability. Implementations live in [autostacgis-plugins](https://github.com/autostacgis/autostacgis-plugins/tree/main/plugins/autostacgis_plugins). Competing producers of a required state are a configuration error. The backward solver reports a feasible synthesized graph without claiming global cost optimality. See the [configuration reference](examples/configuration-reference/config.yaml) for the complete configuration layout.

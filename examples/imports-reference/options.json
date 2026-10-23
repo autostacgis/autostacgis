@@ -2,8 +2,11 @@
   "profiles": {
     "small": {
       "solver": {
-        "max_steps": 8,
-        "timeout": 10
+        "plugin": "backward_chain",
+        "settings": {
+          "max_steps": 8,
+          "timeout": 10
+        }
       },
       "runtime": {
         "executor": {

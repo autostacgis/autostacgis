@@ -25,14 +25,15 @@ A delivery containing multiple acquisitions must remain multiple Items.
 
 ## One plugin system
 
-A plugin has `id`, `requires`, optional settings and settings schema, and a map of capabilities. The interfaces are:
+A plugin has `id`, `requires`, optional settings and settings schema, and exactly one explicitly named capability in its `capabilities` object. The interfaces are:
 
 | Capability | Responsibility |
 | --- | --- |
 | `trigger` | Start work from Python, CLI, scheduling, or another integration |
 | `data_in` | Acquire or stage assets selected for execution |
 | `metadata_in` | Discover inputs and produce STAC descriptions |
-| `goal` | Compile a convenient request into output constraints |
+| `goal` | Build explicitly declared parameters for its required solver |
+| `solver` | Synthesize workflows and validate outputs against its goal contract |
 | `process` | Transform named input objects into named output objects |
 | `sequence` | Split, select, regroup, and combine collections for processing |
 | `checks` | Validate named inputs or their relationships |
@@ -44,13 +45,13 @@ A plugin has `id`, `requires`, optional settings and settings schema, and a map 
 | `services` | Provide shared workers, storage, logging, or other runtime resources |
 | `extensions` | Provide scoped execution behavior |
 
-A plugin can provide several capabilities. Each built-in should have its own source file. Dependencies are explicit and scoped: a plugin cannot implicitly use a dependency of another plugin. Missing dependencies and dependency cycles are errors. An explicit `{plugin: ...}` binding in the invocation's configured settings authorizes calls to that selected plugin for that invocation, without granting its transitive dependencies. Execution order comes from data dependencies and requirements.
+A plugin must provide exactly one capability. Empty or multi-capability declarations are invalid. Python modules declare `CAPABILITY` as one interface name and `IMPLEMENTATION` as one callable; plural `IMPLEMENTATIONS` declarations are invalid. Shared libraries may back several separately named plugins. Standard plugins live in `autostacgis-plugins/plugins/autostacgis_plugins`, with one module per registration. Dependencies are explicit and scoped: a plugin cannot implicitly use a dependency of another plugin. Missing dependencies and dependency cycles are errors. An explicit `{plugin: ...}` binding in the invocation's configured settings authorizes calls to that selected plugin for that invocation, without granting its transitive dependencies. Execution order comes from data dependencies and requirements.
 
-Catalogs select registered implementations with `plugins: [{use: name, settings: {...}}]` or explicit capability definitions. The Python registration namespace is the `autostacgis.plugins` entry-point group. Unselected external registrations must not be imported. Declared dependencies are loaded recursively. Compact settings configure the process capability if present, otherwise the plugin's non-processing capabilities. A Python implementation may also be registered directly. A processing function exposes its complete contract beside its code, through a decorator or attached declaration.
+Catalogs select registered implementations with `plugins: [{use: name, settings: {...}}]` or explicit capability definitions. The Python registration namespace is the `autostacgis.plugins` entry-point group. Unselected external registrations must not be imported. Declared dependencies are loaded recursively. Compact settings configure the plugin's sole declared capability. A Python implementation may also be registered directly. A processing function exposes its complete contract beside its code, through a decorator or attached declaration.
 
 ## Goals
 
-Goal plugins compile into four base forms:
+The `backward_chain` solver accepts four goal forms:
 
 - `output`: constraints on a named result, optionally including kind, metadata predicates, count, source selection, and coverage.
 - `for_each`: select initial objects and require a corresponding output for every selected member.
@@ -61,9 +62,11 @@ Repeated output names combine constraints on the same result. Different names ma
 
 Selectors can filter kind, metadata, bbox intersection, geometry intersection, and whether the native CRS is projected. Input selection is distinct from output requirements: selecting projected inputs excludes raw photographs, while requesting projected outputs allows suitable processing modules to derive them.
 
+The `metadata-value` goal adapter targets `backward_chain` and requires an expected JSON `value` plus exactly one of a metadata `path` or a `jsonata` expression. Optional JSON `parameters` are available to the goal and source selection expressions. JSONata receives the Item, bound asset, asset key, kind, and parameters. `$intersects`, `$covers`, and `$within` accept GeoJSON or STAC bounding boxes, allowing AOI selection from `item.bbox`, `item.geometry`, or another geometry field. Selection filters discovered candidates; a source provider's query controls remote discovery. The adapter also supports named outputs, kinds, per-member goals, counts, coverage, and publication, as declared in its strict settings contract.
+
 An output source `select` requires ancestry from every selected object. Without it, the planner may choose a useful subset of the candidate inventory. A `count` requires that many distinct output identities. Unknown metadata cannot satisfy a predicate.
 
-The mosaic goal plugin compiles an AOI into a coverage requirement and a mosaic metadata predicate. Geometry coverage means the output footprint covers the requested polygon. It does not prove valid or cloud-free pixel coverage. A valid-data coverage goal must identify a measured metadata geometry through `path`. Raw drone photographs with unknown footprints remain `geometry: null` and cannot prove coverage.
+A mosaic request declares a coverage requirement and a `data_state:mosaic` metadata predicate directly in its output goal. Geometry coverage means the output footprint covers the requested polygon. It does not prove valid or cloud-free pixel coverage. A valid-data coverage goal must identify a measured metadata geometry through `path`. Raw drone photographs with unknown footprints remain `geometry: null` and cannot prove coverage.
 
 STAC Item geometry uses WGS84. Native raster CRS and grid metadata belong in the Projection extension. A geographic CRS is not a projected CRS; an RPC model or camera location is not an affine georeferenced grid. Vector and point-cloud descriptions do not require raster fields.
 
@@ -75,7 +78,7 @@ An argument declaration specifies an optional data kind, `one` or `many` cardina
 
 Cross-input requirements express relationships such as compatible acquisition, matching grids, overlap, or source membership. Checks reference input argument names. Pure Python predicates may implement custom checks; declarations should identify observed metadata paths when possible so backward relevance can be narrowed.
 
-Requirements use conjunction, disjunction, negation, exact equality, membership, array membership, array-entry matching, or existence. Missing and null values are unknown; negation preserves unknown. Custom record predicates return true, false, or unknown. JSONata predicates operate on Item JSON and kind.
+Requirements use conjunction, disjunction, negation, exact equality, membership, array membership, array-entry matching, or existence. Missing and null values are unknown; negation preserves unknown. Custom record predicates return true, false, or unknown. JSONata predicates receive `item`, `asset`, `asset_key`, `kind`, and explicit JSON `parameters`. With `equals`, an expression's result is compared with the expected JSON value; otherwise the expression must return a boolean. Booleans and numbers are distinct. Optional `observes` declares all metadata paths read; omission means all metadata. Spatial comparisons use the operands' shared coordinate system and return unknown for missing or invalid geometry. STAC bbox spatial tests support four or six numbers, ignore elevation, and handle west-greater-than-east boxes at the antimeridian.
 
 Each input and output declares supported `data_types`, independently of its scientific kind. Every output must declare at least one type. Each output also declares a kind and a metadata construction policy. `inherit_metadata: []` starts empty; references such as `[image, reference.properties.platform]` copy complete objects or selected subtrees. Inheritance merges in order, with later values winning. Most raster-to-raster and vector-to-vector operations should copy metadata before editing it.
 
@@ -105,7 +108,7 @@ Search has explicit `max_steps`, `max_states` (memoized subproblems), `max_bindi
 
 ## Execution and payload exchange
 
-A plan is a dependency DAG with named input/output identities, effective settings, costs, and predicted Items. A `metadata_in` provider implements `discover(settings, query, context)` and produces STAC-described records without acquiring remote imagery. EOReader performs filesystem product discovery internally; it does not require a separate glob plugin. A provider may additionally implement `discover_from(..., records)` for inventory-dependent metadata. A `data_in` provider implements `acquire(record, settings, context)` for selected assets. Providers exposing both share their source session. Core replans when acquisition updates the descriptions; there is no separate metadata-enrichment stage. Dataflow dependencies determine scheduling; independent nodes may run concurrently.
+A plan is a dependency DAG with named input/output identities, effective settings, costs, and predicted Items. A `metadata_in` provider implements `discover(settings, query, context)` and produces STAC-described records without acquiring remote imagery. EOReader performs filesystem product discovery internally; it does not require a separate glob plugin. A provider may additionally implement `discover_from(..., records)` for inventory-dependent metadata. A `data_in` provider implements `acquire(record, settings, context)` for selected assets. Discovery and acquisition are separate plugin registrations. A metadata provider may explicitly declare a `data_in` route to an acquisition dependency; the core records that route on discovered records. Scoped `context.acquirer(name)` access lets stateful adapters share a discovery/download session without granting another capability to either plugin. Core replans when acquisition updates the descriptions; there is no separate metadata-enrichment stage. Dataflow dependencies determine scheduling; independent nodes may run concurrently.
 
 Raster payloads expose replayable windows backed by native buffers. Vector, table, and point-cloud payloads expose Arrow batches. Python orchestrates native numerical and geospatial operations. Files may be materialized through storage when an algorithm requires random access or memory limits require spilling. A streaming contract does not imply that every algorithm is single-pass.
 
@@ -283,7 +286,12 @@ are errors. JSON Pointer escapes `~0` and `~1` select literal `~` and `/` in key
 catalog:
   $import: plugins.yaml#/catalog
 request:
-  goal: {plugin: harmonized-mosaic}
+  goal:
+    output:
+      require:
+        assets.$asset.data_state:mosaic: true
+        assets.$asset.cf:standard_name: surface_bidirectional_reflectance
+        assets.$asset.unit: "1"
   module_settings:
     atmospheric_correction:
       $import: defaults.json#/atmosphere
@@ -293,3 +301,14 @@ See the [import reference](examples/imports-reference/config.json) and its
 [options fragment](examples/imports-reference/options.json) for JSON/YAML section
 selection, scalar substitution, and local overrides. Import fragments are checked
 through the resolved entry configuration by `tools/validate.py`.
+
+
+## Solver plugins and contracts
+
+A solver is a single-capability plugin, selected with `catalog.solver: {plugin: name, settings: {...}}`. Exactly one solver may be selected, including those loaded through dependencies. If none is selected, the Python implementation selects `backward_chain`. Request `solver` overrides must name that same solver and may change its settings.
+
+Every solver implementation declares a JSON contract with `settings_schema`, optional default `settings`, and `goal_schema`. Settings schemas explicitly list properties and reject unknown parameters. `backward_chain` declares nonnegative integer `max_steps` (default 64), positive integer `max_states` and `max_bindings` (default 100000 each), and positive number `timeout` in seconds (default 120). It uses backward dataflow construction with memoization and metadata predicate regression; metadata goals are inputs to the algorithm. Other solvers may declare different goal parameters; the common goal schema accepts objects and the selected solver validates their structure.
+
+Product states such as surface reflectance, normalization, registration, and mosaicking are metadata constraints in goal configuration. Generic goal adapters may construct solver-specific parameters. They declare `contract.solver` by its unique plugin ID, strict `contract.settings_schema`, and that same solver in `REQUIRES`. Missing solver dependencies, incompatible goals, two selected solvers, duplicate names, and undeclared nested dependencies are errors. Goal adapter output is validated against the selected solver's contract before planning.
+
+All capabilities share `REQUIRES = ("unique-plugin-id", ...)`, serialized as `requires: [name, ...]`. Implementation dependencies cannot be removed by catalog configuration. Names are unique across capabilities; entry-point names must match implementation IDs. A solver factory receives `(application, prepared_request, settings)` and returns an object with `plan(records)` and `validate_outputs(plan, records)`. The executor uses that solver for actual and published goal validation.
