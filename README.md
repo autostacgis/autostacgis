@@ -31,3 +31,11 @@ The standard run configuration is one self-contained YAML or JSON file with `cat
 Validate with `python tools/validate.py` after installing `jsonschema`, `referencing`, and `PyYAML`.
 
 YAML catalogs select installed plugins by registration name, for example `plugins: [{use: markov_seamlines}, {use: mosaic}]`. Dependencies load automatically through the `autostacgis.plugins` entry-point group. Each plugin explicitly declares one capability. Implementations live in [autostacgis-plugins](https://github.com/autostacgis/autostacgis-plugins/tree/main/plugins/autostacgis_plugins). Competing producers of a required state are a configuration error. The backward solver reports a feasible synthesized graph without claiming global cost optimality. See the [configuration reference](examples/configuration-reference/config.yaml) for the complete configuration layout.
+
+## Applications and services
+
+- [autostacgis-postgresql](https://github.com/autostacgis/autostacgis-postgresql): independent PostgreSQL/PostGIS/pgSTAC catalog, standard STAC API, COG tile preview and AutoSTACGIS planning/jobs.
+- [autostacgis-qgis-plugin](https://github.com/autostacgis/autostacgis-qgis-plugin): STAC search, assets and workflow results in QGIS's main map, with per-capability plugin settings.
+- [autostacgis-web](https://github.com/autostacgis/autostacgis-web): Kepler.gl workspace and Electron desktop builds for macOS, Windows and Linux, with an optional bundled backend that starts on explicit request.
+
+Both clients use the same standard STAC endpoints and optional `/autostacgis` configuration, planning and job API. The Python library supplies managed APScheduler and watchdog triggers, registered independently by the standard plugin distribution.
