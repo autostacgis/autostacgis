@@ -23,6 +23,18 @@ acquisition Item with separate imagery assets. Grouping preserves each component
 band, grid, calibration, and viewing metadata. It does not combine raster pixels.
 A delivery containing multiple acquisitions must remain multiple Items.
 
+## Workflow documents
+
+Public workflow files use plugin types as top-level sections. Each section maps globally unique installed plugin IDs to parameter objects. `solver` contains exactly one plugin and `goal` at least one. A goal may map to an array of parameter objects for multiple conjunctive instances. `trigger` contains at most one plugin and defaults to immediate execution (`now`). Explicit parameters override plugin defaults. Shared runtime services and transfer dependencies need not be repeated in the document.
+
+```json
+{"solver":{"backward_chain":{}},"goal":{"metadata-value":{"path":"properties.ready","value":true}}}
+```
+
+`metadata_structure` stores shared STAC schema definitions. Optional `execution` holds orchestration fields such as explicit steps and discovery queries. Plugin settings belong to their capability sections. `schemas/workflow.json` describes the public format; `schemas/config.json` also accepts earlier catalog/request documents for compatibility.
+
+Python plugin modules require a descriptive module docstring, unique ID, semantic VERSION, one CAPABILITY, IMPLEMENTATION, and REQUIRES. Optional literal DEFAULT_CONFIG contains capability-grouped supporting plugin parameters; referenced names become required dependencies. Explicit workflow values override these defaults. Descriptions, defaults, parameter types and parameter descriptions are exposed consistently to clients. Explicit JSON Schemas take priority over conservative reflection of simple annotated function parameters.
+
 ## One plugin system
 
 A plugin has `id`, `requires`, optional settings and settings schema, and exactly one explicitly named capability in its `capabilities` object. The interfaces are:
@@ -208,7 +220,7 @@ Schemas in `schemas/` define the document interfaces. Pinned schemas in `extensi
 
 ## Run configuration
 
-The standard way to run a workflow is one self-contained YAML or JSON file with
+Use the capability-grouped workflow format above for new configurations. The legacy reader also accepts one self-contained YAML or JSON file with
 `catalog` and `request` sections. `catalog.plugins` selects
 available capabilities independently of execution order. Omitting `catalog` uses
 the installed default catalog. Omitting overrides retains plugin defaults. Existing
