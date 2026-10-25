@@ -1,4 +1,4 @@
-# AutoSTACGIS specification 1.0
+# AutostacGIS specification 0.0.1
 
 AutoSTACGIS turns available geospatial data and requested output metadata into a processing workflow. Candidate data is described by STAC Items and assets. Python modules declare input requirements, output effects, and costs. Declarative metadata goals describe the required results.
 
@@ -26,7 +26,7 @@ Initial and generated datasets use the same data-object model. Modules create na
 - [STAC extensions](extensions/README.md), [Data State extension](https://github.com/autostacgis/stac-data-state)
 - [Configuration references](examples/README.md), [complete configuration](examples/configuration-reference/config.yaml). Practical workflows live in [autostacgis-python](https://github.com/autostacgis/autostacgis-python/tree/main/examples).
 
-The standard run configuration is one self-contained YAML or JSON file with `catalog` (available plugins) and `request` (goals and overrides) sections. Most settings can be omitted to retain their defaults. JSON is the configuration model; YAML is an optional authoring syntax. Processing declarations live alongside their implementation functions. STAC describes datasets; AutoSTACGIS defines goals, transformations, and execution contracts. This remains specification version `1.0.0`.
+The standard run configuration is one self-contained YAML or JSON file with plugin types as top-level sections. `solver` selects one solver and `goal` describes the desired data. Processing output saving is configured independently under `process.<plugin>.outputs.<port>`, and is off by default. Most settings can be omitted to retain their defaults. JSON is the configuration model; YAML is an optional authoring syntax. Processing declarations live alongside their implementation functions. STAC describes datasets; AutoSTACGIS defines goals, transformations, and execution contracts. This remains prerelease version `0.0.1`.
 
 Validate with `python tools/validate.py` after installing `jsonschema`, `referencing`, and `PyYAML`.
 

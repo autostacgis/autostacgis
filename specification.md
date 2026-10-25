@@ -1,4 +1,4 @@
-# AutoSTACGIS 1.0
+# AutostacGIS 0.0.1
 
 AutoSTACGIS synthesizes a workflow from candidate data, composable output goals, and available processing modules. The specification is independent of particular sensors, file formats, and pixel-processing libraries.
 
@@ -74,7 +74,7 @@ Repeated output names combine constraints on the same result. Different names ma
 
 Selectors can filter kind, metadata, bbox intersection, geometry intersection, and whether the native CRS is projected. Input selection is distinct from output requirements: selecting projected inputs excludes raw photographs, while requesting projected outputs allows suitable processing modules to derive them.
 
-The `metadata-value` goal adapter targets `backward_chain` and requires an expected JSON `value` plus exactly one of a metadata `path` or a `jsonata` expression. Optional JSON `parameters` are available to the goal and source selection expressions. JSONata receives the Item, bound asset, asset key, kind, and parameters. `$intersects`, `$covers`, and `$within` accept GeoJSON or STAC bounding boxes, allowing AOI selection from `item.bbox`, `item.geometry`, or another geometry field. Selection filters discovered candidates; a source provider's query controls remote discovery. The adapter also supports named outputs, kinds, per-member goals, counts, coverage, and publication, as declared in its strict settings contract.
+The `metadata-value` goal adapter targets `backward_chain` and requires an expected JSON `value` plus exactly one of a metadata `path` or a `jsonata` expression. Optional JSON `parameters` are available to the goal and source selection expressions. JSONata receives the Item, bound asset, asset key, kind, and parameters. `$intersects`, `$covers`, and `$within` accept GeoJSON or STAC bounding boxes, allowing AOI selection from `item.bbox`, `item.geometry`, or another geometry field. Selection filters discovered candidates; a source provider's query controls remote discovery. The adapter also supports named outputs, kinds, per-member goals, counts and coverage, as declared in its strict settings contract.
 
 An output source `select` requires ancestry from every selected object. Without it, the planner may choose a useful subset of the candidate inventory. A `count` requires that many distinct output identities. Unknown metadata cannot satisfy a predicate.
 
@@ -151,17 +151,21 @@ budget for managed exchange buffers, not a bound on total process RSS or on memo
 allocated internally by numerical libraries. Byte consumers must accept `path` or
 `byte-stream` to permit spilling. Scratch remains valid while the run result is open.
 
-Publication belongs to an output policy, declared by a processing plugin, overridden
-under `steps.<name>.outputs.<port>.publish`, or attached to an `output`/`for_each`
-goal. It uses the same registered capabilities for intermediate and final results:
+Saving belongs to a named output policy, declared by a processing plugin and overridden
+under `process.<plugin>.outputs.<port>` or a named step. It is independent of an
+`output`/`for_each` goal and uses the same capabilities for intermediate and final results:
 
 ```yaml
-publish:
-  encode: {plugin: geotiff}
-  data_out:
-    plugin: filesystem
-    settings: {path: ./output/mosaic.tif}
-  metadata_out: {plugin: stac-json}
+process:
+  mosaic:
+    outputs:
+      result:
+        save: true
+        encode: {plugin: geotiff}
+        data_out:
+          plugin: filesystem
+          settings: {path: ./output/mosaic.tif}
+        metadata_out: {plugin: stac-json}
 ```
 
 An encoder is optional when a process already returns a destination-supported type.
@@ -216,7 +220,7 @@ numerical algorithm. Input dependencies and type/metadata contracts still apply.
 
 JSON is canonical for catalogs, goals, requests, and STAC metadata. YAML passes through the same converter and validation path. Duplicate keys, non-string keys, recursive structures, unsupported YAML values, and nonfinite numbers are errors. Python callbacks remain installed implementation code referenced by plugin identity.
 
-Schemas in `schemas/` define the document interfaces. Pinned schemas in `extensions/` provide offline STAC extension validation. Implementations bundle a content-hashed specification snapshot. This specification and implementation use version `1.0.0`.
+Schemas in `schemas/` define the document interfaces. Pinned schemas in `extensions/` provide offline STAC extension validation. Implementations bundle a content-hashed specification snapshot. This specification and implementation remain at prerelease version `0.0.1`.
 
 ## Run configuration
 
@@ -235,7 +239,7 @@ for JSON as well as YAML. Each processing step declares `plugin`, optional
 `settings`, and optional `param:name` arguments. Parameters override step settings,
 which override module settings and installed defaults. The availability list does
 not establish execution order. A catalog processing entry may set `execution`
-with default `transfer`, `checkpoint`, and output `publish` overrides, including
+with default `transfer`, `checkpoint`, and named result saving overrides, including
 for automatically planned steps. These resource/output options are separate from
 the numerical plugin `settings`. With no `steps`, ordinary goal synthesis is unchanged.
 
@@ -324,3 +328,11 @@ Every solver implementation declares a JSON contract with `settings_schema`, opt
 Product states such as surface reflectance, normalization, registration, and mosaicking are metadata constraints in goal configuration. Generic goal adapters may construct solver-specific parameters. They declare `contract.solver` by its unique plugin ID, strict `contract.settings_schema`, and that same solver in `REQUIRES`. Missing solver dependencies, incompatible goals, two selected solvers, duplicate names, and undeclared nested dependencies are errors. Goal adapter output is validated against the selected solver's contract before planning.
 
 All capabilities share `REQUIRES = ("unique-plugin-id", ...)`, serialized as `requires: [name, ...]`. Implementation dependencies cannot be removed by catalog configuration. Names are unique across capabilities; entry-point names must match implementation IDs. A solver factory receives `(application, prepared_request, settings)` and returns an object with `plan(records)` and `validate_outputs(plan, records)`. The executor uses that solver for actual and published goal validation.
+
+## Named result saving and prerelease policy
+
+Saving is configured on `process.<plugin>.outputs.<port>`, with optional named-step overrides at `execution.steps.<step>.outputs.<port>`. `save: true` enables the result’s `encode`, `data_out`, and `metadata_out` calls; standard plugins default to `save: false`. These policies never appear in goal parameters. Any result may be saved, including intermediates, byte streams, and paths. Every naming and destination option is overridable.
+
+A processing output’s `filename_suffixes` appends tokens to that output asset’s `data_state:filename_suffixes` list. Default paths use JSONata to join tokens with underscores. Per-scene defaults use the stable Item `properties.data_state:output_directory`; collective results use the plugin’s configured workspace output location. Current href directories remain described by `data_state:directory_root`. Default locations and encoders live in the plugin contract, not the executor.
+
+All first-party package, plugin, workflow and schema versions remain `0.0.1` during prerelease development. Do not bump versions unless explicitly requested. Commits and content checksums distinguish revisions. Third-party libraries and STAC specification versions keep their own identifiers.

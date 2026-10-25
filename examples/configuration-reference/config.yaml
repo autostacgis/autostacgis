@@ -1,13 +1,40 @@
 catalog:
-  version: 1.0.0
+  version: 0.0.1
   plugins:
   - use: stac-resolver
     settings:
       search_glob: data/source.tif
   - use: align_grid
+    execution:
+      outputs:
+        result:
+          save: true
+          encode:
+            plugin: geotiff
+          data_out:
+            plugin: filesystem
+            settings:
+              directory: output/data
+          metadata_out:
+            plugin: stac-json
+            settings:
+              directory: output/stac
   - use: statistics
     execution:
       transfer: optimized
+      outputs:
+        result:
+          save: true
+          encode:
+            plugin: geotiff
+          data_out:
+            plugin: filesystem
+            settings:
+              directory: output/data
+          metadata_out:
+            plugin: stac-json
+            settings:
+              directory: output/stac
   - use: global_radiometric_match
   - use: group-by
   - use: executor
@@ -41,12 +68,12 @@ catalog:
         backend: threads
         workers: 2
   extension_schemas:
-    https://autostacgis.github.io/stac-data-state/v1.0.0/schema.json: ../../extensions/data-state/schema.json
+    https://autostacgis.github.io/stac-data-state/v0.0.1/schema.json: ../../extensions/data-state/schema.json
   defaults:
     data_transfer:
       plugin: buffered-transfer
 request:
-  version: 1.0.0
+  version: 0.0.1
   sources:
   - stac-resolver
   query: {}
@@ -86,17 +113,6 @@ request:
                 - - -156
                   - 19
             mode: footprint
-          publish:
-            encode:
-              plugin: geotiff
-            data_out:
-              plugin: filesystem
-              settings:
-                directory: output/data
-            metadata_out:
-              plugin: stac-json
-              settings:
-                directory: output/stac
       - for_each:
           name: aligned
           kind: raster
@@ -104,17 +120,6 @@ request:
             assets.$asset.data_state:spectral_sampling: multispectral
           require:
             assets.$asset.data_state:grid_aligned: true
-          publish:
-            encode:
-              plugin: geotiff
-            data_out:
-              plugin: filesystem
-              settings:
-                directory: output/data
-            metadata_out:
-              plugin: stac-json
-              settings:
-                directory: output/stac
     - plugin: metadata-value
       settings:
         path: assets.$asset.data_state:statistics_calculated
@@ -152,23 +157,23 @@ request:
       plugin: statistics
       outputs:
         result:
-          publish:
-            encode:
-              plugin: geotiff
-            data_out:
-              plugin: filesystem
-              settings:
-                path: output/reference.tif
-            metadata_out:
-            - plugin: stac-json
-              settings:
-                path: output/reference.stac.json
-                href_field: properties.example:metadata
-            - plugin: stac-item
-              settings:
-                set:
-                  properties.example:reviewed: true
           transfer: file
+          save: true
+          encode:
+            plugin: geotiff
+          data_out:
+            plugin: filesystem
+            settings:
+              path: output/reference.tif
+          metadata_out:
+          - plugin: stac-json
+            settings:
+              path: output/reference.stac.json
+              href_field: properties.example:metadata
+          - plugin: stac-item
+            settings:
+              set:
+                properties.example:reviewed: true
     finish:
       auto: true
   sequence:
