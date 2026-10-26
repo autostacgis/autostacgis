@@ -1,7 +1,12 @@
 {
   "$import": "../configuration-reference/config.yaml",
-  "request": {
-    "$import": "options.json#/profiles/small",
+  "solver": {
+    "$import": "options.json#/profiles/solver"
+  },
+  "services": {
+    "$import": "options.json#/profiles/services"
+  },
+  "execution": {
     "work_directory": {
       "$import": "options.json#/paths/work"
     },

@@ -22,7 +22,7 @@ flowchart TD
 Initial and generated datasets use the same data-object model. Modules create named output objects; later modules can consume them. Sequence plugins select actual members for collection operations. The planner can choose a subset of available data or require a corresponding processed output for every selected input.
 
 - [Specification](specification.md)
-- [Plugin schema](schemas/plugin.json), [goal schema](schemas/goal.json), [combined config schema](schemas/config.json), [catalog schema](schemas/catalog.json), [request schema](schemas/request.json)
+- [Workflow schema](schemas/workflow.json), [config schema](schemas/config.json), [named result schema](schemas/result.json)
 - [STAC extensions](extensions/README.md), [Data State extension](https://github.com/autostacgis/stac-data-state)
 - [Configuration references](examples/README.md), [complete configuration](examples/configuration-reference/config.yaml). Practical workflows live in [autostacgis-python](https://github.com/autostacgis/autostacgis-python/tree/main/examples).
 
@@ -30,7 +30,7 @@ The standard run configuration is one self-contained YAML or JSON file with plug
 
 Validate with `python tools/validate.py` after installing `jsonschema`, `referencing`, and `PyYAML`.
 
-YAML catalogs select installed plugins by registration name, for example `plugins: [{use: markov_seamlines}, {use: mosaic}]`. Dependencies load automatically through the `autostacgis.plugins` entry-point group. Each plugin explicitly declares one capability. Implementations live in [autostacgis-plugins](https://github.com/autostacgis/autostacgis-plugins/tree/main/plugins/autostacgis_plugins). Competing producers of a required state are a configuration error. The backward solver reports a feasible synthesized graph without claiming global cost optimality. See the [configuration reference](examples/configuration-reference/config.yaml) for the complete configuration layout.
+Select plugins by unique name in their capability sections, for example `process: {markov_seamlines: {}, mosaic: {}}`. Dependencies load automatically through the `autostacgis.plugins` entry-point group. Each plugin explicitly declares one capability. Implementations live in [autostacgis-plugins](https://github.com/autostacgis/autostacgis-plugins/tree/main/plugins/autostacgis_plugins). Competing producers of a required state are a configuration error. The backward solver reports a feasible synthesized graph without claiming global cost optimality.
 
 ## Applications and services
 
@@ -40,4 +40,4 @@ YAML catalogs select installed plugins by registration name, for example `plugin
 
 Both clients use the same standard STAC endpoints and optional `/autostacgis` configuration, planning and job API. The Python library supplies managed APScheduler and watchdog triggers, registered independently by the standard plugin distribution.
 
-The optional `metadata_structure` configuration section combines STAC Item JSON Schema URLs (`schemas`) with an inline Item JSON Schema (`inline`). With `strict: true` (the default when this section is present), undeclared metadata is an error. STAC's core Item schema is always included. Declare extension schemas explicitly. See the Python library's metadata structure documentation for plugin access and nested field rules.
+The optional `metadata_structure` configuration section combines STAC Item JSON Schema URLs (`schemas`) with an inline Item JSON Schema (`inline`). With `strict: true` (the default), undeclared metadata is an error. STAC's core Item schema is always included. Declare extension schemas explicitly. See the Python library's metadata structure documentation for plugin access and nested field rules.

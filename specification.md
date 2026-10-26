@@ -31,13 +31,13 @@ Public workflow files use plugin types as top-level sections. Each section maps 
 {"solver":{"backward_chain":{}},"goal":{"metadata-value":{"path":"properties.ready","value":true}}}
 ```
 
-`metadata_structure` stores shared STAC schema definitions. Optional `execution` holds orchestration fields such as explicit steps and discovery queries. Plugin settings belong to their capability sections. `schemas/workflow.json` describes the public format; `schemas/config.json` also accepts earlier catalog/request documents for compatibility.
+`metadata_structure` stores shared STAC schema definitions. Optional `execution` holds orchestration fields such as explicit steps and discovery queries. Plugin settings belong to their capability sections. `schemas/workflow.json` describes the only public format; `schemas/config.json` references it. Old catalog/request documents, separate request files, expanded plugin definitions, and shorthand output paths are rejected.
 
 Python plugin modules require a descriptive module docstring, unique ID, semantic VERSION, one CAPABILITY, IMPLEMENTATION, and REQUIRES. Optional literal DEFAULT_CONFIG contains capability-grouped supporting plugin parameters; referenced names become required dependencies. Explicit workflow values override these defaults. Descriptions, defaults, parameter types and parameter descriptions are exposed consistently to clients. Explicit JSON Schemas take priority over conservative reflection of simple annotated function parameters.
 
 ## One plugin system
 
-A plugin has `id`, `requires`, optional settings and settings schema, and exactly one explicitly named capability in its `capabilities` object. The interfaces are:
+A plugin module declares a unique `ID`, `VERSION`, one `CAPABILITY`, one callable `IMPLEMENTATION`, and `REQUIRES`. The interfaces are:
 
 | Capability | Responsibility |
 | --- | --- |
@@ -59,7 +59,7 @@ A plugin has `id`, `requires`, optional settings and settings schema, and exactl
 
 A plugin must provide exactly one capability. Empty or multi-capability declarations are invalid. Python modules declare `CAPABILITY` as one interface name and `IMPLEMENTATION` as one callable; plural `IMPLEMENTATIONS` declarations are invalid. Shared libraries may back several separately named plugins. Standard plugins live in `autostacgis-plugins/plugins/autostacgis_plugins`, with one module per registration. Dependencies are explicit and scoped: a plugin cannot implicitly use a dependency of another plugin. Missing dependencies and dependency cycles are errors. An explicit `{plugin: ...}` binding in the invocation's configured settings authorizes calls to that selected plugin for that invocation, without granting its transitive dependencies. Execution order comes from data dependencies and requirements.
 
-Catalogs select registered implementations with `plugins: [{use: name, settings: {...}}]` or explicit capability definitions. The Python registration namespace is the `autostacgis.plugins` entry-point group. Unselected external registrations must not be imported. Declared dependencies are loaded recursively. Compact settings configure the plugin's sole declared capability. A Python implementation may also be registered directly. A processing function exposes its complete contract beside its code, through a decorator or attached declaration.
+Workflow capability sections select registered plugins by their exact unique names and configure their parameters directly. The Python registration namespace is the `autostacgis.plugins` entry-point group. Declared dependencies load recursively. Configuration cannot replace installed contracts, implementations, or dependency declarations. A processing function exposes its complete contract beside its code, through a decorator or attached declaration.
 
 ## Goals
 
@@ -110,7 +110,7 @@ Modules declare a `sequence` policy on collection inputs. Requests override `seq
 
 The reference solver performs backward dataflow synthesis. For a required output state, it identifies declared producer effects and recursively derives their input requirements. It memoizes subproblems, prunes unreachable antecedents, reuses generated objects, and propagates selected input versions into auxiliary derivations such as footprints and masks. Processing functions do not execute during search. An explicitly required aggregation is constructed from members satisfying the other requested states.
 
-If multiple loaded algorithms establish the same required state, synthesis raises `AmbiguousProducer` naming the requirement and plugins. The user must select one producer in the catalog. Carrying an already-required state through a transformation does not make it a competing producer. Distinct required effects, input bindings, and source versions remain separate planning decisions.
+If multiple loaded algorithms establish the same required state, synthesis raises `AmbiguousProducer` naming the requirement and plugins. The user must select one producer in the workflow. Carrying an already-required state through a transformation does not make it a competing producer. Distinct required effects, input bindings, and source versions remain separate planning decisions.
 
 Costs default to one. A cost can be a constant, a JSONata expression over declared parameter paths and full input metadata/settings, or a pure Python function. Costs are evaluated against the selected versions of inputs. Array histories therefore affect downstream costs. Costs must be finite, deterministic, and nonnegative; time, randomness, and dynamic evaluation are unavailable to JSONata planning expressions.
 
@@ -140,8 +140,7 @@ encoders, destinations, and transfer implementations declare `input_types` and
 incompatible publication pipelines before execution when their types are known.
 
 Every processing edge passes through the configured `data_transfer` provider.
-`catalog.defaults.data_transfer` selects the default; `request.data_transfer` can
-override it. The reference `buffered-transfer` implementation has a `memory_bytes`
+The `data_transfer` section configures transfer providers; `execution.data_transfer` selects the active provider. The reference `buffered-transfer` implementation has a `memory_bytes`
 setting. `transfer: memory`, `file`, or `optimized` can be declared on a process
 contract, a named step, or a port. The default is `optimized`. Memory mode explicitly
 requests buffering; file mode requests file backing. Optimized mode reserves a
@@ -181,11 +180,11 @@ metadata after its destination is known; core does not encode format-specific ru
 or default directory, and an optional `href_field` to retain the saved reference in
 the returned Item. Local JSON may also retain its own reference in the file. It delegates bytes to a `data_out` destination. Metadata APIs can receive
 an Item directly without exposing a local filename. There is no separate delivery
-stage in the request layout.
+stage in `execution.steps`.
 
 ## Checkpoints
 
-`request.checkpoint` selects a provider for all processing steps. Contracts and named
+`execution.checkpoint` selects a provider for all processing steps. Contracts and named
 steps may override it; null disables it for that step. Checkpointing is opt-in. A
 provider implements `save(key, outputs, inputs)` and `load(key, inputs)`. Save returns
 a reference and durable output descriptions; load returns those typed output groups
@@ -218,38 +217,41 @@ numerical algorithm. Input dependencies and type/metadata contracts still apply.
 
 ## Serialization and validation
 
-JSON is canonical for catalogs, goals, requests, and STAC metadata. YAML passes through the same converter and validation path. Duplicate keys, non-string keys, recursive structures, unsupported YAML values, and nonfinite numbers are errors. Python callbacks remain installed implementation code referenced by plugin identity.
+JSON is canonical for workflow configuration and STAC metadata. YAML passes through the same converter and validation path. Duplicate keys, non-string keys, recursive structures, unsupported YAML values, and nonfinite numbers are errors. Python callbacks remain installed implementation code referenced by plugin identity.
 
 Schemas in `schemas/` define the document interfaces. Pinned schemas in `extensions/` provide offline STAC extension validation. Implementations bundle a content-hashed specification snapshot. This specification and implementation remain at prerelease version `0.0.1`.
 
 ## Run configuration
 
-Use the capability-grouped workflow format above for new configurations. The legacy reader also accepts one self-contained YAML or JSON file with
-`catalog` and `request` sections. `catalog.plugins` selects
-available capabilities independently of execution order. Omitting `catalog` uses
-the installed default catalog. Omitting overrides retains plugin defaults. Existing
-standalone catalog and request documents remain accepted for compatibility.
-The solver seeks outputs satisfying `request.goal`, subject to plugin input/output
-contracts, selected capabilities, and any explicit step constraints.
+Use one capability-grouped JSON or YAML workflow. The CLI accepts one configuration path:
+
+```sh
+autostacgis validate config.yaml
+autostacgis plan config.yaml
+autostacgis run config.yaml
+```
+
+Python uses `Application(configuration)` or `Application.from_file(path)`, followed by `plan(inputs=...)` or `run(inputs=...)`. Goals and plugin settings come exclusively from the workflow. Named output persistence uses `outputs.<port>` objects with explicit encoder and destination calls. Old configuration forms are errors, with no translation or migration reader.
 
 ## Ordered overrides
 
-An optional `request.steps` object contains unique step names in declaration order,
+An optional `execution.steps` object contains unique step names in declaration order,
 for JSON as well as YAML. Each processing step declares `plugin`, optional
 `settings`, and optional `param:name` arguments. Parameters override step settings,
 which override module settings and installed defaults. The availability list does
-not establish execution order. A catalog processing entry may set `execution`
-with default `transfer`, `checkpoint`, and named result saving overrides, including
-for automatically planned steps. These resource/output options are separate from
-the numerical plugin `settings`. With no `steps`, ordinary goal synthesis is unchanged.
+not establish execution order. Named step `transfer` and `checkpoint` settings
+control execution resources. Output saving belongs to `process.<plugin>.outputs.<port>`
+or `execution.steps.<step>.outputs.<port>`. With no explicit steps, goal synthesis
+uses the configured processing plugins.
 
 ```yaml
-steps:
-  prepare: {auto: true}
-  normalize:
-    plugin: global_radiometric_match
-    param:pif_method: entire
-  finish: {auto: true}
+execution:
+  steps:
+    prepare: {auto: true}
+    normalize:
+      plugin: global_radiometric_match
+      param:pif_method: entire
+    finish: {auto: true}
 ```
 
 `{auto: true}` opens only the gap in which it appears. The solver may insert the
@@ -273,14 +275,7 @@ matches the planned value. Arbitrary runtime scalar return values are not an
 additional namespace: processing outputs remain native records described by STAC.
 There is no global constant scope or filename expression language.
 
-`outputs: {result: 'path:./saved.tif'}` explicitly materializes a single output port.
-Supported durable formats are GeoTIFF, Zarr, and Parquet for compatible data kinds.
-The resulting asset `href` and native payload point to the saved product for
-subsequent steps. An explicit path must identify exactly one Item, may not collide
-with another output or overwrite an input, and is relative to the run configuration.
-Unspecified outputs keep the ordinary in-memory/managed-storage behavior. `path:`
-also resolves explicit path parameters, without filename transformations.
-
+Named output objects explicitly select saving, encoders, destinations and metadata writers. A destination `settings.path` is a literal path or JSONata expression. There is no shorthand string output or extension-based encoder inference. Unspecified outputs keep the managed-runtime behavior.
 
 ## Configuration imports
 
@@ -299,18 +294,14 @@ run configuration. Missing selections, recursive imports and incompatible merges
 are errors. JSON Pointer escapes `~0` and `~1` select literal `~` and `/` in keys.
 
 ```yaml
-catalog:
-  $import: plugins.yaml#/catalog
-request:
-  goal:
-    output:
-      require:
-        assets.$asset.data_state:mosaic: true
-        assets.$asset.cf:standard_name: surface_bidirectional_reflectance
-        assets.$asset.unit: "1"
-  module_settings:
-    atmospheric_correction:
-      $import: defaults.json#/atmosphere
+$import: shared-workflow.yaml
+process:
+  atmospheric_correction:
+    $import: defaults.json#/atmosphere
+goal:
+  metadata-value:
+    path: assets.$asset.data_state:mosaic
+    value: true
 ```
 
 See the [import reference](examples/imports-reference/config.json) and its
@@ -321,13 +312,13 @@ through the resolved entry configuration by `tools/validate.py`.
 
 ## Solver plugins and contracts
 
-A solver is a single-capability plugin, selected with `catalog.solver: {plugin: name, settings: {...}}`. Exactly one solver may be selected, including those loaded through dependencies. If none is selected, the Python implementation selects `backward_chain`. Request `solver` overrides must name that same solver and may change its settings.
+A solver is a single-capability plugin selected with `solver: {backward_chain: {...}}`. Exactly one solver must be configured. Installed goal dependencies must agree with that solver. There is no independent request selector or settings overlay.
 
 Every solver implementation declares a JSON contract with `settings_schema`, optional default `settings`, and `goal_schema`. Settings schemas explicitly list properties and reject unknown parameters. `backward_chain` declares nonnegative integer `max_steps` (default 64), positive integer `max_states` and `max_bindings` (default 100000 each), and positive number `timeout` in seconds (default 120). It uses backward dataflow construction with memoization and metadata predicate regression; metadata goals are inputs to the algorithm. Other solvers may declare different goal parameters; the common goal schema accepts objects and the selected solver validates their structure.
 
 Product states such as surface reflectance, normalization, registration, and mosaicking are metadata constraints in goal configuration. Generic goal adapters may construct solver-specific parameters. They declare `contract.solver` by its unique plugin ID, strict `contract.settings_schema`, and that same solver in `REQUIRES`. Missing solver dependencies, incompatible goals, two selected solvers, duplicate names, and undeclared nested dependencies are errors. Goal adapter output is validated against the selected solver's contract before planning.
 
-All capabilities share `REQUIRES = ("unique-plugin-id", ...)`, serialized as `requires: [name, ...]`. Implementation dependencies cannot be removed by catalog configuration. Names are unique across capabilities; entry-point names must match implementation IDs. A solver factory receives `(application, prepared_request, settings)` and returns an object with `plan(records)` and `validate_outputs(plan, records)`. The executor uses that solver for actual and published goal validation.
+All capabilities share `REQUIRES = ("unique-plugin-id", ...)`, serialized as `requires: [name, ...]`. Implementation dependencies cannot be removed by configuration. Names are unique across capabilities; entry-point names must match implementation IDs. A solver factory receives `(application, prepared_request, settings)` and returns an object with `plan(records)` and `validate_outputs(plan, records)`. The executor uses that solver for actual and published goal validation.
 
 ## Named result saving and prerelease policy
 

@@ -1,22 +1,12 @@
 # Configuration references
 
-The standard run configuration is one self-contained YAML or JSON file containing
-`catalog` and `request` sections. The reference below documents that format. Practical workflows and
-input-generation scripts live only in [autostacgis-python examples](https://github.com/autostacgis/autostacgis-python/tree/main/examples).
-They are maintained independently, rather than mirrored between repositories.
+A workflow is one JSON or YAML file with plugin types as top-level sections. Each plugin name maps directly to its parameters. Only `solver` and `goal` are required. No catalog/request format or separate request file is accepted.
 
 | Example | Coverage |
 | --- | --- |
-| [Configuration reference](configuration-reference/config.yaml) | Inline catalog and request; compact and full plugin declarations; settings schemas; catalog/request solver and runtime settings; local extension schemas; source and module selection; sequence routing; composed and per-input goals; typed transfer; checkpoints; per-output publication; named steps; native result links; metadata pointers; explicit output paths. |
+| [Configuration reference](configuration-reference/config.yaml) | Solver and goal parameters, plugin defaults, services, source queries, input grouping, transfers, checkpoints, named result saving, explicit steps, native result links, and metadata pointers. |
+| [Imports](imports-reference/config.json) | Share grouped sections and select values with local JSON Pointers. |
 
-The reference intentionally spells out many optional fields. Its numbers and paths
-illustrate the format; they are not recommended defaults or a ready-to-run recipe.
-For example, `query: {}` is a provider-defined object, and `discovery` can be set to
-`true` to request planning without processing. `catalog.extension_schemas` registers
-a local STAC schema. All ordinary paths resolve from the entry configuration's
-folder.
+The reference spells out optional fields for illustration. Its paths and numbers are not a ready-to-run recipe. Ordinary paths resolve from the entry configuration's folder. Practical workflows and demo input generation live in [autostacgis-python](https://github.com/autostacgis/autostacgis-python/tree/main/examples).
 
-Run `python tools/validate.py` to check the schemas, reference configurations, and
-pinned extension hashes. See the [specification](../specification.md) for field
-semantics and default behavior. Most fields can be omitted in a practical
-configuration.
+Run `python tools/validate.py` to check all schemas and reference examples. See the [specification](../specification.md) for field semantics.

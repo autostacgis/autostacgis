@@ -1,79 +1,100 @@
-catalog:
-  version: 0.0.1
-  plugins:
-  - use: stac-resolver
-    settings:
-      search_glob: data/source.tif
-  - use: align_grid
-    execution:
-      outputs:
-        result:
-          save: true
-          encode:
-            plugin: geotiff
-          data_out:
-            plugin: filesystem
-            settings:
-              directory: output/data
-          metadata_out:
-            plugin: stac-json
-            settings:
-              directory: output/stac
-  - use: statistics
-    execution:
-      transfer: optimized
-      outputs:
-        result:
-          save: true
-          encode:
-            plugin: geotiff
-          data_out:
-            plugin: filesystem
-            settings:
-              directory: output/data
-          metadata_out:
-            plugin: stac-json
-            settings:
-              directory: output/stac
-  - use: global_radiometric_match
-  - use: group-by
-  - use: executor
-  - use: events
-  - use: geotiff
-  - use: stac-json
-  - use: filesystem
-  - use: buffered-transfer
-  - use: file-checkpoint
-  - use: valid-data
-  - use: stac-item
-  - use: split
-  - use: combine
-  - id: metadata-value
-    requires:
-    - backward_chain
-    capabilities:
-      goal:
-        implementation: metadata-value
-  solver:
-    plugin: backward_chain
-    settings:
-      max_steps: 64
-      max_states: 100000
-      max_bindings: 100000
-      timeout: 120
-  runtime:
-    executor:
-      implementation: executor
-      settings:
-        backend: threads
-        workers: 2
-  extension_schemas:
-    https://autostacgis.github.io/stac-data-state/v0.0.1/schema.json: ../../extensions/data-state/schema.json
-  defaults:
-    data_transfer:
-      plugin: buffered-transfer
-request:
-  version: 0.0.1
+solver:
+  backward_chain:
+    max_steps: 16
+    max_states: 10000
+    max_bindings: 10000
+    timeout: 30
+goal:
+  metadata-value:
+  - name: reference
+    kind: raster
+    select:
+      require:
+        properties.platform: example-sensor
+    count: 1
+    coverage:
+      geometry:
+        type: Polygon
+        coordinates:
+        - - - -156
+            - 19
+          - - -155
+            - 19
+          - - -155
+            - 20
+          - - -156
+            - 20
+          - - -156
+            - 19
+      mode: footprint
+    path: assets.$asset.data_state:statistics_calculated
+    value: true
+  - name: aligned
+    kind: raster
+    select:
+      require:
+        assets.$asset.data_state:spectral_sampling: multispectral
+    for_each: true
+    path: assets.$asset.data_state:grid_aligned
+    value: true
+metadata_in:
+  stac-resolver:
+    search_glob: data/source.tif
+process:
+  align_grid:
+    outputs:
+      result:
+        save: false
+        encode:
+          plugin: geotiff
+        data_out:
+          plugin: filesystem
+          settings:
+            directory: output/data
+        metadata_out:
+          plugin: stac-json
+          settings:
+            directory: output/stac
+    crs: EPSG:8857
+    resampling: bilinear
+  statistics:
+    outputs:
+      result:
+        save: false
+        encode:
+          plugin: geotiff
+        data_out:
+          plugin: filesystem
+          settings:
+            directory: output/data
+        metadata_out:
+          plugin: stac-json
+          settings:
+            directory: output/stac
+  global_radiometric_match: {}
+sequence:
+  group-by: {}
+  split: {}
+  combine: {}
+services:
+  executor:
+    backend: threads
+    workers: 1
+  events: {}
+encode:
+  geotiff: {}
+metadata_out:
+  stac-json: {}
+  stac-item: {}
+data_out:
+  filesystem: {}
+data_transfer:
+  buffered-transfer: {}
+checkpoint:
+  file-checkpoint: {}
+checks:
+  valid-data: {}
+execution:
   sources:
   - stac-resolver
   query: {}
@@ -81,61 +102,6 @@ request:
   - align_grid
   - statistics
   - global_radiometric_match
-  module_settings:
-    align_grid:
-      crs: EPSG:8857
-      resampling: bilinear
-  goal:
-    any_of:
-    - all_of:
-      - output:
-          name: reference
-          kind: raster
-          require:
-            assets.$asset.data_state:statistics_calculated: true
-          from:
-          - source-scene
-          select:
-            properties.platform: example-sensor
-          count: 1
-          coverage:
-            geometry:
-              type: Polygon
-              coordinates:
-              - - - -156
-                  - 19
-                - - -155
-                  - 19
-                - - -155
-                  - 20
-                - - -156
-                  - 20
-                - - -156
-                  - 19
-            mode: footprint
-      - for_each:
-          name: aligned
-          kind: raster
-          select:
-            assets.$asset.data_state:spectral_sampling: multispectral
-          require:
-            assets.$asset.data_state:grid_aligned: true
-    - plugin: metadata-value
-      settings:
-        path: assets.$asset.data_state:statistics_calculated
-        value: true
-        kind: raster
-  solver:
-    plugin: backward_chain
-    settings:
-      max_steps: 16
-      max_states: 10000
-      max_bindings: 10000
-      timeout: 30
-  runtime:
-    executor:
-      settings:
-        workers: 1
   work_directory: work/reference
   discovery: false
   steps:
@@ -158,7 +124,7 @@ request:
       outputs:
         result:
           transfer: file
-          save: true
+          save: false
           encode:
             plugin: geotiff
           data_out:

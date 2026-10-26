@@ -31,34 +31,22 @@ result = obj({
     "transfer": transfer,
 })
 save("result", result)
-execution = obj({"transfer": transfer, "checkpoint": {"oneOf": [call, {"type": "null"}]},
-                 "outputs": {"type": "object", "additionalProperties": result}})
-cap = obj({"implementation": string, "settings": mapping, "input_types": strings, "output_types": strings, "execution": execution, "contract": mapping}, ["implementation"])
 capabilities = ["trigger", "metadata_in", "data_in", "sequence", "checks", "process", "encode", "data_out",
                 "data_transfer", "checkpoint", "metadata_out", "goal", "solver", "services", "extensions"]
-save("plugin", obj({"id": string, "requires": strings, "settings": mapping, "settings_schema": mapping,
-    "capabilities": {**obj({c: cap for c in capabilities}), "minProperties": 1, "maxProperties": 1}}, ["id", "capabilities"]))
-solver = call
-save("catalog", obj({"version": {"const": "0.0.1"}, "plugins": {"type": "array", "items": {"oneOf": [
-    {"$ref": BASE + "plugin.json"}, obj({"use": string, "settings": mapping, "execution": execution}, ["use"])]}},
-    "defaults": {"type": "object", "properties": {"data_transfer": call}, "additionalProperties": False},
-    "runtime": mapping, "solver": solver, "extension_schemas": {"type": "object", "additionalProperties": string}}, ["version", "plugins"]))
 sequence_call = obj({"plugin": string, "settings": mapping, "scope": {"enum": ["inventory", "available"]}}, ["plugin"])
-req = obj({"version": {"const": "0.0.1"}, "goal": {"$ref": BASE + "goal.json"}, "sources": strings,
-           "query": mapping, "modules": strings, "module_settings": {"type": "object", "additionalProperties": mapping},
+req = obj({"sources": strings,
+           "query": mapping, "modules": strings,
            "sequence": {"type": "object", "additionalProperties": {"oneOf": [sequence_call,
                 {"type": "array", "minItems": 1, "items": sequence_call}, {"type": "null"}]}},
-           "solver": solver, "runtime": mapping, "work_directory": string, "data_transfer": call,
-           "checkpoint": {"oneOf": [call, {"type": "null"}]}, "discovery": {"type": "boolean"}}, ["goal"])
+           "work_directory": string, "data_transfer": call,
+           "checkpoint": {"oneOf": [call, {"type": "null"}]}, "discovery": {"type": "boolean"}})
 step = obj({"plugin": string, "settings": mapping,
     "sequence": {"type": "object", "additionalProperties": {"oneOf": [sequence_call,
         {"type": "array", "minItems": 1, "items": sequence_call}, {"type": "null"}]}}, "transfer": transfer, "checkpoint": {"oneOf": [call, {"type": "null"}]},
     "inputs": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^result:"}},
-    "outputs": {"type": "object", "additionalProperties": {"oneOf": [
-        {"type": "string", "pattern": "^path:.+"}, result]}}}, ["plugin"])
+    "outputs": {"type": "object", "additionalProperties": result}}, ["plugin"])
 step["patternProperties"] = {"^param:.+": {}}
 req["properties"]["steps"] = {"type": "object", "minProperties": 1, "additionalProperties": {"oneOf": [step, obj({"auto": {"const": True}}, ["auto"])]}}
-save("request", req)
 structure = obj({"schemas": {"type": "array", "items": {"type": "string", "format": "uri"}, "uniqueItems": True},
                  "inline": mapping, "strict": {"type": "boolean", "default": True}})
 groups = {c: {"type": "object", "additionalProperties": mapping} for c in capabilities}
@@ -67,8 +55,7 @@ groups["trigger"]["maxProperties"] = 1
 groups["goal"].update(minProperties=1, additionalProperties={"oneOf": [mapping, {"type": "array", "minItems": 1, "items": mapping}]})
 orchestration = deepcopy(req)
 orchestration["required"] = []
-for name in ("version", "goal", "module_settings", "solver", "runtime"):
-    orchestration["properties"].pop(name)
 save("workflow", {"title": "Capability-grouped workflow", **obj({**groups, "metadata_structure": structure, "execution": orchestration}, ["solver", "goal"])})
-save("config", {"oneOf": [{"$ref": BASE + "workflow.json"}, obj({"catalog": {"$ref": BASE + "catalog.json"}, "request": {"$ref": BASE + "request.json"}, "metadata_structure": structure}, ["request"])]})
-save("goal", {"type": "object", "minProperties": 1})
+save("config", {"$ref": BASE + "workflow.json"})
+for removed in ("catalog", "request", "plugin", "goal"):
+    (ROOT / (removed + ".json")).unlink(missing_ok=True)
